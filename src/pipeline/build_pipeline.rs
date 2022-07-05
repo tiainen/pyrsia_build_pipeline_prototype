@@ -114,7 +114,7 @@ async fn start_build(
     fs::create_dir_all(&working_dir)?;
 
     let pipeline_build_script_src = fs::File::open(format!(
-        "pyrsia_build/pipelines/build-{}.sh",
+        "pipelines/build-{}.sh",
         mapping_info.package_type
     ))?;
     let mut pipeline_build_script_dest = PathBuf::from(&working_dir);

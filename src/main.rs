@@ -14,17 +14,22 @@
    limitations under the License.
 */
 
+pub mod args;
 pub mod pipeline;
 
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
+use clap::Parser;
 
+use args::parser::PyrsiaBuildPipelineArgs;
 use pipeline::build_pipeline::build_pipeline_service;
 use pipeline::states::BuildStates;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     pretty_env_logger::init();
+
+    let args = PyrsiaBuildPipelineArgs::parse();
 
     let app_data = web::Data::new(BuildStates::new());
 
@@ -34,7 +39,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(app_data.clone())
             .service(build_pipeline_service())
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind((args.host, args.port))?
     .run()
     .await
 }

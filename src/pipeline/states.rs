@@ -19,15 +19,9 @@ use std::collections::HashMap;
 use tokio::sync::RwLock;
 
 #[derive(Clone, Debug, Serialize)]
-pub struct BuildArtifact {
-    pub artifact_url: String,
-    pub source_artifact_url: String,
-}
-
-#[derive(Clone, Debug, Serialize)]
 pub enum BuildStatus {
     Running,
-    Success { artifacts: Vec<BuildArtifact> },
+    Success { artifact_urls: Vec<String> },
     Failure(String),
 }
 

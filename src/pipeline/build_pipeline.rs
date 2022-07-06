@@ -21,12 +21,11 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
-use crate::pipeline::states::{BuildArtifact, BuildInfo, BuildStates, BuildStatus};
+use crate::pipeline::states::{BuildInfo, BuildStates, BuildStatus};
 
 #[derive(Debug, Deserialize)]
 struct GetArtifactRequest {
     build_id: String,
-    artifact_number: u32,
     filename: String,
 }
 
@@ -44,7 +43,7 @@ pub enum SourceRepository {
 #[derive(Deserialize)]
 pub struct MappingInfo {
     pub package_type: PackageType,
-    pub package_type_id: String,
+    pub package_specific_id: String,
     pub source_repository: Option<SourceRepository>,
     pub build_spec_url: Option<String>,
 }
@@ -60,7 +59,7 @@ async fn get_build(
     }
 }
 
-#[get("{build_id}/artifacts/{artifact_number}/{filename}")]
+#[get("{build_id}/artifacts/{filename}")]
 async fn get_build_artifact(
     path: web::Path<GetArtifactRequest>,
     build_states: web::Data<BuildStates>,
@@ -74,9 +73,8 @@ async fn get_build_artifact(
             BuildStatus::Running => Ok(HttpResponse::Accepted().finish()),
             BuildStatus::Success { .. } => {
                 let artifact_path = PathBuf::from(format!(
-                    "/tmp/pyrsia-build-pipeline/{}/artifacts/{}/{}",
+                    "/tmp/pyrsia-build-pipeline/{}/artifacts/{}",
                     get_artifact_request.build_id,
-                    get_artifact_request.artifact_number,
                     get_artifact_request.filename
                 ));
                 let artifact_data = fs::read(&artifact_path)?;
@@ -97,7 +95,7 @@ async fn start_build(
 ) -> Result<impl Responder, io::Error> {
     println!(
         "Requesting build of {} for {}",
-        mapping_info.package_type, mapping_info.package_type_id
+        mapping_info.package_type, mapping_info.package_specific_id
     );
 
     let id = uuid::Uuid::new_v4().to_string();
@@ -132,7 +130,7 @@ async fn start_build(
 
     match mapping_info.package_type {
         PackageType::Docker => {
-            command.arg(&mapping_info.package_type_id);
+            command.arg(&mapping_info.package_specific_id);
         }
         PackageType::Maven2 => {
             let source_repository = match mapping_info.source_repository.as_ref().unwrap() {
@@ -140,7 +138,7 @@ async fn start_build(
             };
             command
                 .arg(mapping_info.package_type.to_string())
-                .arg(&mapping_info.package_type_id)
+                .arg(&mapping_info.package_specific_id)
                 .arg(&id)
                 .arg(source_repository.0)
                 .arg(source_repository.1);
@@ -185,16 +183,23 @@ async fn run_command(
     let exit_status = command.status().await?;
 
     let build_info = if exit_status.success() {
+        let build_dir = PathBuf::from(format!("/tmp/pyrsia-build-pipeline/{}/artifacts", build_id));
+
+        let mut artifact_urls = vec![];
+        for entry in fs::read_dir(build_dir)? {
+            let file = entry?;
+            let file_type = file.file_type()?;
+            if file_type.is_file() {
+                if let Some(file_name) = file.file_name().to_str() {
+                    artifact_urls.push(format!("/build/{}/artifacts/{}", build_id, file_name));
+                }
+            }
+        }
+
         BuildInfo {
             id: build_id.to_string(),
             status: BuildStatus::Success {
-                artifacts: vec![BuildArtifact {
-                    artifact_url: format!("/build/{}/artifacts/0/artifact.file", build_id),
-                    source_artifact_url: format!(
-                        "/build/{}/artifacts/0/source_artifact.file",
-                        build_id
-                    ),
-                }],
+                artifact_urls,
             },
         }
     } else {

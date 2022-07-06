@@ -37,10 +37,7 @@ mv ${BUILD_SPEC} ../
 . $(pwd)/../${BUILD_SPEC}
 
 # start build
-export JAVA_HOME=/opt/java11
-mvn clean package || fatal "Failed to execute maven build"
+mvn clean package org.apache.maven.plugins:maven-deploy-plugin:3.0.0-M2:deploy -DaltDeploymentRepository=local::file://$(pwd)/target/local-repo || fatal "Failed to execute maven build"
 
 # copy artifacts
-mkdir ../artifacts/0
-cp ${artifact} ../artifacts/0/artifact.file || fatal "Failed to copy artifact: ${artifact}"
-cp ${sourceArtifact} ../artifacts/0/source_artifact.file || fatal "Failed to copy source artifact: ${sourceArtifact}"
+cp target/local-repo/${groupId}/${artifactId}/${version}/* ../artifacts/ || fatal "Failed to copy artifacts"

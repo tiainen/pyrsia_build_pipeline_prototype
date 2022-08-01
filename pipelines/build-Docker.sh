@@ -41,6 +41,12 @@ curl -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/manifests/${IMAGE_REFEREN
  -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
  -o "manifest"
 
+# download config
+CONFIG_DIGEST=$(cat manifest | jq -r .config.digest)
+curl -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/blobs/${CONFIG_DIGEST}" \
+ -H "Authorization: Bearer ${DOCKER_IO_TOKEN}" \
+ -o "${CONFIG_DIGEST}.blob"
+
 # download blobs
 for b in "$(cat manifest | jq -r .layers[].digest)"; do
   BLOB_DIGEST=${b}

@@ -32,22 +32,22 @@ DOCKER_IO_TOKEN=$(curl "https://auth.docker.io/token?client_id=Pyrsia&service=re
 # curl "https://registry-1.docker.io/v2/${IMAGE_NAME}/manifests/${IMAGE_REFERENCE}" \
 #  -H "Authorization: Bearer ${DOCKER_IO_TOKEN}" \
 #  -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
-#  -o "${IMAGE_NAME}.manifest.list"
+#  -o "manifest.list"
 # if it returns a Content-Type header with the same value as the Accept header, we have a list,
 # otherwise just download the regular v2 manifest.
 
-curl -I -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/manifests/${IMAGE_REFERENCE}" \
+curl -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/manifests/${IMAGE_REFERENCE}" \
  -H "Authorization: Bearer ${DOCKER_IO_TOKEN}" \
  -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
- -o "${IMAGE_NAME}.manifest"
+ -o "manifest"
 
 # download blobs
-for b in "$(cat ${IMAGE_NAME}.manifest | jq -r .layers[].digest)"; do
+for b in "$(cat manifest | jq -r .layers[].digest)"; do
   BLOB_DIGEST=${b}
-  curl -I -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/blobs/${BLOB_DIGEST}" \
+  curl -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/blobs/${BLOB_DIGEST}" \
    -H "Authorization: Bearer ${DOCKER_IO_TOKEN}" \
    -o "${BLOB_DIGEST}.blob"
 done
 
 # copy artifacts
-mv *.manifest *.blob ../artifacts/ || fatal "Failed to copy artifacts"
+mv manifest *.blob ../artifacts/ || fatal "Failed to copy artifacts"

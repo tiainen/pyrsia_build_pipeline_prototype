@@ -126,20 +126,30 @@ async fn start_build(
     let mut command = process::Command::new("sh");
     command.current_dir(&working_dir);
 
-    command.arg(format!("build-{}.sh", mapping_info.package_type));
+    command.arg(format!("build-{}.sh", mapping_info.package_type))
+        .arg(mapping_info.package_type.to_string())
+        .arg(&mapping_info.package_specific_id)
+        .arg(&id);
 
     match mapping_info.package_type {
         PackageType::Docker => {
-            command.arg(&mapping_info.package_specific_id);
-        }
+            let items: Vec<&str> = if mapping_info.package_specific_id.contains('@') {
+                mapping_info.package_specific_id.split('@').collect()
+            } else {
+                mapping_info.package_specific_id.split(':').collect()
+            };
+            if items[0].contains('/') {
+                command.arg(items[0]);
+            } else {
+                command.arg(format!("library/{}", items[0]));
+            }
+            command.arg(items[1]);
+        },
         PackageType::Maven2 => {
             let source_repository = match mapping_info.source_repository.as_ref().unwrap() {
                 SourceRepository::Git { url, tag } => (url, tag),
             };
             command
-                .arg(mapping_info.package_type.to_string())
-                .arg(&mapping_info.package_specific_id)
-                .arg(&id)
                 .arg(source_repository.0)
                 .arg(source_repository.1);
 

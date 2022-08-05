@@ -21,7 +21,7 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
-use crate::pipeline::states::{BuildInfo, BuildStates, BuildStatus};
+use crate::pipeline::states::{BuildStates, BuildStatus};
 
 #[derive(Debug, Deserialize)]
 struct GetArtifactRequest {
@@ -74,8 +74,7 @@ async fn get_build_artifact(
             BuildStatus::Success { .. } => {
                 let artifact_path = PathBuf::from(format!(
                     "/tmp/pyrsia-build-pipeline/{}/artifacts/{}",
-                    get_artifact_request.build_id,
-                    get_artifact_request.filename
+                    get_artifact_request.build_id, get_artifact_request.filename
                 ));
                 let artifact_data = fs::read(&artifact_path)?;
                 Ok(HttpResponse::Ok()
@@ -98,23 +97,16 @@ async fn start_build(
         mapping_info.package_type, mapping_info.package_specific_id
     );
 
-    let id = uuid::Uuid::new_v4().to_string();
-    let build_info = BuildInfo {
-        id: id.clone(),
-        status: BuildStatus::Running,
-    };
-
+    let id = uuid::Uuid::new_v4();
     build_states
-        .update_build_info(&id, build_info.clone())
+        .update_build_info(&id.to_string(), BuildStatus::Running)
         .await;
 
     let working_dir = PathBuf::from(format!("/tmp/pyrsia-build-pipeline/{}", id));
     fs::create_dir_all(&working_dir)?;
 
-    let pipeline_build_script_src = fs::File::open(format!(
-        "pipelines/build-{}.sh",
-        mapping_info.package_type
-    ))?;
+    let pipeline_build_script_src =
+        fs::File::open(format!("pipelines/build-{}.sh", mapping_info.package_type))?;
     let mut pipeline_build_script_dest = PathBuf::from(&working_dir);
     pipeline_build_script_dest.push(format!("build-{}.sh", mapping_info.package_type));
     let pipeline_build_script_dest_file = fs::File::create(pipeline_build_script_dest)?;
@@ -126,10 +118,11 @@ async fn start_build(
     let mut command = process::Command::new("sh");
     command.current_dir(&working_dir);
 
-    command.arg(format!("build-{}.sh", mapping_info.package_type))
+    command
+        .arg(format!("build-{}.sh", mapping_info.package_type))
         .arg(mapping_info.package_type.to_string())
         .arg(&mapping_info.package_specific_id)
-        .arg(&id);
+        .arg(id.to_string());
 
     match mapping_info.package_type {
         PackageType::Docker => {
@@ -144,14 +137,12 @@ async fn start_build(
                 command.arg(format!("library/{}", items[0]));
             }
             command.arg(items[1]);
-        },
+        }
         PackageType::Maven2 => {
             let source_repository = match mapping_info.source_repository.as_ref().unwrap() {
                 SourceRepository::Git { url, tag } => (url, tag),
             };
-            command
-                .arg(source_repository.0)
-                .arg(source_repository.1);
+            command.arg(source_repository.0).arg(source_repository.1);
 
             if let Some(build_spec_url) = mapping_info.build_spec_url.as_ref() {
                 command.arg(build_spec_url);
@@ -160,20 +151,14 @@ async fn start_build(
     }
 
     tokio::spawn(async move {
-        if let Err(io_error) = run_command(command, &id, build_states.clone()).await {
+        if let Err(io_error) = run_command(command, &id.to_string(), build_states.clone()).await {
             build_states
-                .update_build_info(
-                    &id,
-                    BuildInfo {
-                        id: id.to_string(),
-                        status: BuildStatus::Failure(io_error.to_string()),
-                    },
-                )
+                .update_build_info(&id.to_string(), BuildStatus::Failure(io_error.to_string()))
                 .await;
         }
     });
 
-    Ok(HttpResponse::Ok().json(build_info))
+    Ok(HttpResponse::Ok().json(id.to_string()))
 }
 
 pub fn build_pipeline_service() -> Scope {
@@ -192,7 +177,7 @@ async fn run_command(
 
     let exit_status = command.status().await?;
 
-    let build_info = if exit_status.success() {
+    let build_status = if exit_status.success() {
         let build_dir = PathBuf::from(format!("/tmp/pyrsia-build-pipeline/{}/artifacts", build_id));
 
         let mut artifact_urls = vec![];
@@ -206,23 +191,15 @@ async fn run_command(
             }
         }
 
-        BuildInfo {
-            id: build_id.to_string(),
-            status: BuildStatus::Success {
-                artifact_urls,
-            },
-        }
+        BuildStatus::Success { artifact_urls }
     } else {
-        BuildInfo {
-            id: build_id.to_string(),
-            status: match exit_status.code() {
-                Some(code) => BuildStatus::Failure(code.to_string()),
-                None => BuildStatus::Failure("process exited with unknown reason".to_string()),
-            },
+        match exit_status.code() {
+            Some(code) => BuildStatus::Failure(code.to_string()),
+            None => BuildStatus::Failure("process exited with unknown reason".to_string()),
         }
     };
 
-    build_states.update_build_info(build_id, build_info).await;
+    build_states.update_build_info(build_id, build_status).await;
 
     Ok(())
 }

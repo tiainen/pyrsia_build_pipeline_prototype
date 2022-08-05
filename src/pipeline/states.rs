@@ -42,9 +42,15 @@ impl BuildStates {
         }
     }
 
-    pub async fn update_build_info(&self, key: &str, build_info: BuildInfo) {
+    pub async fn update_build_info(&self, key: &str, build_status: BuildStatus) {
         let mut states_write = self.states.write().await;
-        states_write.insert(key.to_string(), build_info);
+        states_write.insert(
+            key.to_string(),
+            BuildInfo {
+                id: key.to_owned(),
+                status: build_status,
+            },
+        );
     }
 
     pub async fn get_build_info(&self, key: &str) -> Option<BuildInfo> {

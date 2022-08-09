@@ -39,20 +39,20 @@ DOCKER_IO_TOKEN=$(curl "https://auth.docker.io/token?client_id=Pyrsia&service=re
 curl -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/manifests/${IMAGE_REFERENCE}" \
  -H "Authorization: Bearer ${DOCKER_IO_TOKEN}" \
  -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
- -o "manifest"
+ -o "manifest" || fatal "Failed to fetch manifest"
 
 # download config
 CONFIG_DIGEST=$(cat manifest | jq -r .config.digest)
 curl -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/blobs/${CONFIG_DIGEST}" \
  -H "Authorization: Bearer ${DOCKER_IO_TOKEN}" \
- -o "${CONFIG_DIGEST}.blob"
+ -o "${CONFIG_DIGEST}.blob" || fatal "Failed to fetch config with digest ${CONFIG_DIGEST}"
 
 # download blobs
-for b in "$(cat manifest | jq -r .layers[].digest)"; do
+cat manifest | jq -r .layers[].digest | while read b; do
   BLOB_DIGEST=${b}
   curl -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/blobs/${BLOB_DIGEST}" \
    -H "Authorization: Bearer ${DOCKER_IO_TOKEN}" \
-   -o "${BLOB_DIGEST}.blob"
+   -o "${BLOB_DIGEST}.blob" || fatal "Failed to fetch blob with digest ${BLOB_DIGEST}"
 done
 
 # copy artifacts

@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/bash -xe
 
 echo "#######################################################"
 echo "#"
@@ -36,6 +36,10 @@ DOCKER_IO_TOKEN=$(curl "https://auth.docker.io/token?client_id=Pyrsia&service=re
 # if it returns a Content-Type header with the same value as the Accept header, we have a list,
 # otherwise just download the regular v2 manifest.
 
+let HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -I -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/manifests/${IMAGE_REFERENCE}" -H "Authorization: Bearer ${DOCKER_IO_TOKEN}" -H "Accept: application/vnd.docker.distribution.manifest.v2+json")
+if [[ ${HTTP_CODE} -ge 400 ]]; then
+  fatal "Failed to fetch manifest. registry-1.docker.io responded with ${HTTP_CODE}."
+fi
 curl -L "https://registry-1.docker.io/v2/${IMAGE_NAME}/manifests/${IMAGE_REFERENCE}" \
  -H "Authorization: Bearer ${DOCKER_IO_TOKEN}" \
  -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
